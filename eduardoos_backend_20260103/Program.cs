@@ -4,7 +4,7 @@ var app = builder.Build();
 
 app.MapGet("/", () =>
 {
-    return "Hello there";
+    return "Hello there testing service";
 });
 
 app.Run();
