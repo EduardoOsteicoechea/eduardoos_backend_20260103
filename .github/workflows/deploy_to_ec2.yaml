@@ -1,0 +1,58 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout code onto the Github Runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Setup .NET Core (Adjust '8.0.x' to your project's version: 6.0, 7.0, etc.)
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      # 3. Publish the API to a local folder named 'publish'
+      # This creates the .dll/.exe and dependencies without source code
+      - name: Publish API
+        run: dotnet publish -c Release -o ./publish
+
+      # 4. Copy the 'publish' folder to the EC2 instance
+      - name: Copy files via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST_DNS }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./publish/*"
+          target: "/home/${{ secrets.USERNAME }}/eduardoos_backend_api"
+          # strip_components removes the top folder "./publish" so files land directly in target
+          strip_components: 1
+
+      # 5. Restart the service on EC2
+      - name: Restart Service via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST_DNS }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Set target directory variable
+            DEST_DIR="/home/${{ secrets.USERNAME }}/eduardoos_backend_api"
+
+            # Ensure the binary is executable (Modify 'YourAppName.dll' or executable name if needed)
+            # sudo chmod +x "$DEST_DIR/YourExecutableName" 
+            
+            # Restart the service
+            echo "Restarting service..."
+            sudo systemctl daemon-reload
+            sudo systemctl restart eduardoos-backend-api.service
+            
+            # Check status (optional)
+            sudo systemctl status eduardoos-backend-api.service --no-pager
